@@ -10,7 +10,7 @@ const uploadJson = document.getElementById("uploadJson");
 // --- Tâches stockées localement ---
 let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
 
-// --- Fonction pour formater la date en "JJ/MM hh:mm" ---
+// --- Fonction pour formater date en "JJ/MM hh:mm" ---
 function formatDate(iso){
   const d = new Date(iso);
   const day = String(d.getDate()).padStart(2,'0');
@@ -35,11 +35,9 @@ function renderTasks() {
       taskText.textContent = task.text + " (ajoutée le " + task.date.split("T")[0] + ")";
       taskText.style.cursor = "pointer";
 
-      // Tooltip pour survol des commentaires avec timestamps
+      // Tooltip pour commentaires
       if(task.comments?.length){
-        taskText.title = task.comments.map(c=>{
-          return `• ${c.text} (${formatDate(c.date)})`;
-        }).join("\n");
+        taskText.title = task.comments.map(c=>`• ${c.text} (${formatDate(c.date)})`).join("\n");
       }
 
       // Bloc commentaire caché
@@ -47,7 +45,7 @@ function renderTasks() {
       commentBlock.className = "comment-section";
       commentBlock.style.display = "none";
 
-      // Liste des commentaires
+      // Liste commentaires
       const commentList = document.createElement("ul");
       commentList.className = "comment-list";
       if(task.comments?.length){
@@ -119,6 +117,62 @@ archiveBtn.addEventListener("click", ()=>{
   URL.revokeObjectURL(url);
 });
 
+// --- Boutons Nettoyer et Restaurer ---
+const buttonsRow = document.querySelector(".buttons-row");
+
+// Tout nettoyer
+const clearBtn = document.createElement("button");
+clearBtn.textContent = "🧹 Tout nettoyer";
+clearBtn.addEventListener("click", ()=>{
+  if(confirm("Es-tu sûr de vouloir tout effacer ? Cette action est irréversible !")){
+    tasks = [];
+    localStorage.removeItem("tasks");
+    renderTasks();
+    alert("✅ Toutes les tâches ont été supprimées.");
+  }
+});
+buttonsRow.appendChild(clearBtn);
+
+// Restaurer depuis JSON
+const restoreBtn = document.createElement("button");
+restoreBtn.textContent = "📂 Restaurer depuis JSON";
+const restoreInput = document.createElement("input");
+restoreInput.type = "file";
+restoreInput.accept = ".json";
+restoreInput.style.display = "none";
+
+restoreBtn.addEventListener("click", ()=> restoreInput.click());
+
+restoreInput.addEventListener("change", event=>{
+  const files = Array.from(event.target.files);
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      try{
+        const data = JSON.parse(e.target.result);
+        if(Array.isArray(data)){
+          data.forEach(item=>{
+            if(item.text && item.date){
+              if(!item.comments) item.comments=[];
+              item.comments = item.comments.map(c=>{
+                if(typeof c==='string') return {text:c, date:new Date().toISOString()};
+                return c;
+              });
+              tasks.push({text:item.text, date:item.date, comments:item.comments});
+            }
+          });
+          localStorage.setItem("tasks", JSON.stringify(tasks));
+          renderTasks();
+          alert("✅ JSON restauré avec succès !");
+        }
+      }catch(err){ console.error("Erreur lecture JSON:", err); alert("❌ Impossible de lire le fichier JSON"); }
+    };
+    reader.readAsText(file);
+  });
+});
+buttonsRow.appendChild(restoreBtn);
+buttonsRow.appendChild(restoreInput);
+
 // --- Prompts ---
 const prompts = [
   {id:"planifier", label:"Plan", text:"Transforme ces tâches en plan structuré étape par étape :"},
@@ -146,7 +200,7 @@ prompts.forEach(p=>{
   promptsContainer.appendChild(btn);
 });
 
-// --- Upload JSON ---
+// --- Upload JSON additionnel ---
 uploadJson.addEventListener("change", event=>{
   const files = Array.from(event.target.files);
   files.forEach(file=>{
@@ -158,7 +212,6 @@ uploadJson.addEventListener("change", event=>{
           data.forEach(item=>{
             if(item.text && item.date){
               if(!item.comments) item.comments=[];
-              // s'assurer que chaque commentaire a une date
               item.comments = item.comments.map(c=>{
                 if(typeof c==='string') return {text:c, date:new Date().toISOString()};
                 return c;
